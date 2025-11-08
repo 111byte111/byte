@@ -19,6 +19,8 @@ jobs:
         with:
           node-version: '18'
           cache: 'npm'
+          # optional: if your lockfile lives in a subdirectory, change this to e.g. "subdir/package-lock.json"
+          cache-dependency-path: package-lock.json
 
       - name: Set up Python
         uses: actions/setup-python@v4
@@ -54,7 +56,7 @@ jobs:
               npm ci
             elif [ -f pnpm-lock.yaml ]; then
               echo "Found pnpm-lock.yaml -> running: pnpm install --frozen-lockfile"
-              npm i -g pnpm || true
+              npm i -g pnpm@latest || true
               pnpm install --frozen-lockfile || pnpm install
             elif [ -f yarn.lock ]; then
               echo "Found yarn.lock -> running: yarn install --frozen-lockfile"
@@ -64,14 +66,14 @@ jobs:
               npm install
             fi
 
-            # run build script if present
-            if npm run | sed -n '1,200p' | grep -q " build"; then
+            # run build script if present in package.json
+            if grep -q '"build"' package.json >/dev/null 2>&1; then
               echo "Running npm run build"
               npm run build || true
             fi
 
-            # run tests if present
-            if npm test --silent 2>/dev/null; then
+            # run tests if a test script is present
+            if grep -q '"test"' package.json >/dev/null 2>&1; then
               echo "Running npm test"
               npm test || true
             fi
@@ -94,9 +96,10 @@ jobs:
             if [ -f setup.py ]; then
               pip install . || true
             fi
+            # run pytest if tests exist
             if [ -d tests ] || ls *_test.py >/dev/null 2>&1; then
               pip install pytest || true
-              pytest || true
+              python -m pytest -q || true
             fi
           else
             echo "No Python packaging files detected"
@@ -129,6 +132,8 @@ jobs:
       - name: Collect common artifact paths
         id: collect
         run: |
+          # avoid literal globs when nothing matches
+          shopt -s nullglob
           paths=""
           for p in build dist out; do
             if [ -d "$p" ]; then
@@ -136,12 +141,12 @@ jobs:
             fi
           done
           for a in *.tar.gz *.zip *.exe; do
-            if ls $a >/dev/null 2>&1; then
-              paths="$paths $a"
-            fi
+            for f in $a; do
+              paths="$paths $f"
+            done
           done
-          # Trim leading space
-          paths="$(echo $paths | sed 's/^ *//')"
+          # Trim leading/trailing whitespace
+          paths="$(echo "$paths" | sed -e 's/^ *//' -e 's/ *$//')"
           echo "paths=$paths" >> $GITHUB_OUTPUT
 
       - name: Upload build artifacts (if any)
