@@ -17,10 +17,16 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '18'
+          node-version: '20'
           cache: 'npm'
-          # optional: if your lockfile lives in a subdirectory, change this to e.g. "subdir/package-lock.json"
-          cache-dependency-path: package-lock.json
+          # If your repo is a monorepo or lockfiles live in subdirectories, list them here
+          cache-dependency-path: |
+            package-lock.json
+            **/package-lock.json
+            pnpm-lock.yaml
+            **/pnpm-lock.yaml
+            yarn.lock
+            **/yarn.lock
 
       - name: Set up Python
         uses: actions/setup-python@v4
@@ -55,7 +61,7 @@ jobs:
               echo "Found npm-shrinkwrap.json -> running: npm ci"
               npm ci
             elif [ -f pnpm-lock.yaml ]; then
-              echo "Found pnpm-lock.yaml -> running: pnpm install --frozen-lockfile"
+              echo "Found pnpm-lock.yaml -> installing pnpm and running: pnpm install --frozen-lockfile"
               npm i -g pnpm@latest || true
               pnpm install --frozen-lockfile || pnpm install
             elif [ -f yarn.lock ]; then
